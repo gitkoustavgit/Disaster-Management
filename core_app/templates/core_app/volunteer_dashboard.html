@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer Dashboard - Asha</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #ccc; }
+        .header h1 { margin: 0; color: #2c3e50; }
+        .header .user-info { font-size: 1.1em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #34495e; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        tr:hover { background-color: #ddd; }
+        .status { font-weight: bold; padding: 3px 8px; border-radius: 3px; display: inline-block; color: white; font-size: 0.85em; }
+        .status-Pending { background-color: #f0ad4e; }
+        .status-Assigned { background-color: #5bc0de; }
+        .status-EnRoute { background-color: #5cb85c; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Volunteer Dashboard</h1>
+        <div class="user-info">
+        Hello, {{ user.username }}
+        {% if user.is_superuser %}
+            (Admin)
+        {% elif user.groups.all %}
+            ({{ user.groups.all.0.name }})
+        {% endif %}
+| <a href="{% url 'logout' %}">Logout</a>        </div>
+    </div>
+{# Alerts Section #}
+{% if global_alerts %}
+    <div style="margin-top: 20px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; border-radius: 5px;">
+        <h2>🚨 Urgent Alerts 🚨</h2>
+        {% for alert in global_alerts %}
+            <div style="margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 3px;">
+                <strong>{{ alert.severity }} Alert:</strong> {{ alert.message }}
+                <small>(Posted by {{ alert.posted_by }} at {{ alert.timestamp|date:"M d, Y H:i" }})</small>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+<!-- <p><a href="{% url 'create_alert' %}">Post New Alert</a></p> {# Add link to create alerts #} -->
+ {% if user.is_superuser %}
+    <p><a href="{% url 'create_alert' %}">Post New Alert</a></p>
+{% endif %}
+    <h2>All Active Relief Requests</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Requester</th>
+                <th>Request Type</th>
+                <th>Status</th>
+                <th>Submitted At</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for request in all_requests %}
+            <tr>
+                <td>{{ request.requester.username }}</td>
+                <td>{{ request.get_request_type_display }}</td>
+                <td><span class="status status-{{ request.status }}">{{ request.status }}</span></td>
+                <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
+                <td>
+    <a href="{% url 'request_detail' request.id %}">View Details</a>
+    {% if request.status == 'Pending' %}
+        | <a href="{% url 'assign_request' request.id %}">Assign to Me</a>
+    {% endif %}
+</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No active relief requests at the moment.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>
