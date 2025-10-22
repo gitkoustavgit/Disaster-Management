@@ -6,12 +6,16 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.conf import settings # To access MongoDB settings
+from django.conf import settings  # To access MongoDB settings
+from django.db import transaction  # ✅ ADDED
 
 # --- Third-Party and Utility Imports ---
 from pymongo import MongoClient
-from bson.objectid import ObjectId # To work with MongoDB's _id field
-import datetime # For timestamps
+from bson.objectid import ObjectId  # To work with MongoDB's _id field
+import datetime  # For timestamps
+
+# --- Local Services ---
+from .services import choose_best_volunteer  # ✅ ADDED
 
 
 # --- HELPER FUNCTIONS ---
@@ -93,7 +97,7 @@ def login_view(request):
             else:
                 messages.error(request, "Invalid username or password.")
         else:
-            messages.error(request, "Invalid username or password.") # Error message for form-level errors
+            messages.error(request, "Invalid username or password.")  # Error message for form-level errors
     else:
         form = AuthenticationForm()
     return render(request, 'core_app/login.html', {'form': form})
@@ -188,6 +192,47 @@ def assign_request_view(request, request_id):
     except ReliefRequest.DoesNotExist:
         messages.error(request, "This request does not exist.")
 
+    return redirect('volunteer_dashboard')
+
+
+# ✅ NEW: Auto-assign to the best volunteer (atomic + race-safe)
+@login_required(login_url='login')
+@transaction.atomic
+def auto_assign_request_view(request, request_id):
+    """
+    Atomically assign a pending request to the best volunteer chosen by services.choose_best_volunteer.
+    Only staff can perform this action.
+    """
+    from .models import ReliefRequest
+
+    if not request.user.is_staff:
+        messages.error(request, "You do not have permission to perform this action.")
+        return redirect('dashboard')
+
+    try:
+        # Lock the row to avoid double assignment under concurrent clicks
+        relief_request = (
+            ReliefRequest.objects.select_for_update()
+            .get(pk=request_id)
+        )
+    except ReliefRequest.DoesNotExist:
+        messages.error(request, "This request does not exist.")
+        return redirect('volunteer_dashboard')
+
+    if relief_request.status != 'Pending':
+        messages.warning(request, f"Request #{relief_request.id} is already {relief_request.status}.")
+        return redirect('volunteer_dashboard')
+
+    volunteer = choose_best_volunteer(max_active_tasks=1)
+    if volunteer is None:
+        messages.warning(request, "No eligible volunteers are available right now.")
+        return redirect('volunteer_dashboard')
+
+    relief_request.assigned_to_volunteer = volunteer
+    relief_request.status = 'Assigned'
+    relief_request.save(update_fields=['assigned_to_volunteer', 'status', 'updated_at'])
+
+    messages.success(request, f"Request #{relief_request.id} assigned to {volunteer.username}.")
     return redirect('volunteer_dashboard')
 
 
