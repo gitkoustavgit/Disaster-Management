@@ -205,8 +205,8 @@ def auto_assign_request_view(request, request_id):
     """
     from .models import ReliefRequest
 
-    if not request.user.is_staff:
-        messages.error(request, "You do not have permission to perform this action.")
+    if not request.user.is_superuser:
+        messages.error(request, "Only NGO/admin can auto-assign volunteers.")
         return redirect('dashboard')
 
     try:

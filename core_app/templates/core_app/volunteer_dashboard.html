@@ -18,36 +18,51 @@
         .status-Pending { background-color: #f0ad4e; }
         .status-Assigned { background-color: #5bc0de; }
         .status-EnRoute { background-color: #5cb85c; }
+
+        /* simple buttons */
+        .btn { display:inline-block; padding: 6px 10px; border-radius: 4px; text-decoration:none; border: 1px solid transparent; font-size: 0.95em; }
+        .btn-primary { background:#007bff; color:#fff; }
+        .btn-link { color:#007bff; text-decoration:underline; border:none; background:transparent; padding:0; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Volunteer Dashboard</h1>
         <div class="user-info">
-        Hello, {{ user.username }}
-        {% if user.is_superuser %}
-            (Admin)
-        {% elif user.groups.all %}
-            ({{ user.groups.all.0.name }})
-        {% endif %}
-| <a href="{% url 'logout' %}">Logout</a>        </div>
+            Hello, {{ user.username }}
+            {% if user.is_superuser %}(Admin){% elif user.groups.all %}({{ user.groups.all.0.name }}){% endif %}
+            | <a href="{% url 'logout' %}">Logout</a>
+        </div>
     </div>
-{# Alerts Section #}
-{% if global_alerts %}
-    <div style="margin-top: 20px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; border-radius: 5px;">
-        <h2>🚨 Urgent Alerts 🚨</h2>
-        {% for alert in global_alerts %}
-            <div style="margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 3px;">
-                <strong>{{ alert.severity }} Alert:</strong> {{ alert.message }}
-                <small>(Posted by {{ alert.posted_by }} at {{ alert.timestamp|date:"M d, Y H:i" }})</small>
-            </div>
+
+    {# Flash messages (so you see success/warning from auto-assign) #}
+    {% if messages %}
+      <ul style="list-style:none; padding:0; margin:16px 0;">
+        {% for message in messages %}
+          <li style="margin:6px 0; padding:8px 12px; border-radius:4px; {% if 'success' in message.tags %}background:#d4edda; border:1px solid #c3e6cb; color:#155724;{% elif 'warning' in message.tags %}background:#fff3cd; border:1px solid #ffeeba; color:#856404;{% elif 'error' in message.tags %}background:#f8d7da; border:1px solid #f5c6cb; color:#721c24;{% else %}background:#d1ecf1; border:1px solid #bee5eb; color:#0c5460;{% endif %}">
+            {{ message }}
+          </li>
         {% endfor %}
-    </div>
-{% endif %}
-<!-- <p><a href="{% url 'create_alert' %}">Post New Alert</a></p> {# Add link to create alerts #} -->
- {% if user.is_superuser %}
-    <p><a href="{% url 'create_alert' %}">Post New Alert</a></p>
-{% endif %}
+      </ul>
+    {% endif %}
+
+    {# Alerts Section #}
+    {% if global_alerts %}
+        <div style="margin-top: 20px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; border-radius: 5px;">
+            <h2>🚨 Urgent Alerts 🚨</h2>
+            {% for alert in global_alerts %}
+                <div style="margin-bottom: 10px; padding: 10px; border: 1px dashed #ccc; border-radius: 3px;">
+                    <strong>{{ alert.severity }} Alert:</strong> {{ alert.message }}
+                    <small>(Posted by {{ alert.posted_by }} at {{ alert.timestamp|date:"M d, Y H:i" }})</small>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if user.is_superuser %}
+        <p style="margin-top:12px;"><a class="btn-link" href="{% url 'create_alert' %}">Post New Alert</a></p>
+    {% endif %}
+
     <h2>All Active Relief Requests</h2>
     <table>
         <thead>
@@ -67,11 +82,14 @@
                 <td><span class="status status-{{ request.status }}">{{ request.status }}</span></td>
                 <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
                 <td>
-    <a href="{% url 'request_detail' request.id %}">View Details</a>
-    {% if request.status == 'Pending' %}
-        | <a href="{% url 'assign_request' request.id %}">Assign to Me</a>
-    {% endif %}
-</td>
+                    <a class="btn-link" href="{% url 'request_detail' request.id %}">View Details</a>
+                    {% if request.status == 'Pending' %}
+                        | <a class="btn-link" href="{% url 'assign_request' request.id %}">Assign to Me</a>
+                        {% if user.is_superuser %}
+                            | <a class="btn btn-primary" href="{% url 'auto_assign_request' request.id %}">Auto-Assign</a>
+                        {% endif %}
+                    {% endif %}
+                </td>
             </tr>
             {% empty %}
             <tr>
@@ -80,6 +98,5 @@
             {% endfor %}
         </tbody>
     </table>
-
 </body>
 </html>
