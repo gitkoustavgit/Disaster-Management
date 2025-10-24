@@ -15,6 +15,9 @@ class Profile(models.Model):
     # Volunteer-only fields
     full_name = models.CharField(max_length=100, blank=True)
     skills_bio = models.TextField(max_length=500, blank=True)
+    # Location fields (for volunteers)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     def __str__(self):
         return f"{self.user.username} ({self.role})"
@@ -54,3 +57,26 @@ class ReliefRequest(models.Model):
 
     def __str__(self):
         return f"{self.get_request_type_display()} request by {self.requester.username} ({self.status})"
+
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.contrib.auth.models import User
+
+@receiver(post_save, sender=User)
+def create_or_update_user_profile(sender, instance, created, **kwargs):
+    """
+    Ensure a Profile exists for every User.
+    - Creates a Profile when a new User is created.
+    - Saves Profile when User is saved (keeps things in sync).
+    """
+    if created:
+        # default role could be left blank or set to 'victim' by default
+        Profile.objects.create(user=instance, role='victim', phone_number='')
+    else:
+        # if a profile exists, save it (no-op if nothing changed)
+        try:
+            instance.profile.save()
+        except Profile.DoesNotExist:
+            # create if missing for any reason
+            Profile.objects.create(user=instance, role='victim', phone_number='')

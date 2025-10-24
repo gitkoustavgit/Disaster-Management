@@ -201,7 +201,7 @@ def assign_request_view(request, request_id):
 def auto_assign_request_view(request, request_id):
     """
     Atomically assign a pending request to the best volunteer chosen by services.choose_best_volunteer.
-    Only staff can perform this action.
+    Only superuser (NGO/admin) can perform this action (button is shown only to superusers).
     """
     from .models import ReliefRequest
 
@@ -211,10 +211,7 @@ def auto_assign_request_view(request, request_id):
 
     try:
         # Lock the row to avoid double assignment under concurrent clicks
-        relief_request = (
-            ReliefRequest.objects.select_for_update()
-            .get(pk=request_id)
-        )
+        relief_request = ReliefRequest.objects.select_for_update().get(pk=request_id)
     except ReliefRequest.DoesNotExist:
         messages.error(request, "This request does not exist.")
         return redirect('volunteer_dashboard')
@@ -223,7 +220,9 @@ def auto_assign_request_view(request, request_id):
         messages.warning(request, f"Request #{relief_request.id} is already {relief_request.status}.")
         return redirect('volunteer_dashboard')
 
-    volunteer = choose_best_volunteer(max_active_tasks=1)
+    # <-- IMPORTANT: pass the relief_request object to the service function -->
+    volunteer = choose_best_volunteer(relief_request, max_active_tasks=1)
+
     if volunteer is None:
         messages.warning(request, "No eligible volunteers are available right now.")
         return redirect('volunteer_dashboard')
