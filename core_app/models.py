@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-
+from django.utils import timezone
 
 class Profile(models.Model):
     ROLE_CHOICES = (
@@ -18,9 +18,33 @@ class Profile(models.Model):
     # Location fields (for volunteers)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    # Timestamp for last location update (volunteer or admin)
+    location_updated_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.user.username} ({self.role})"
+    def save(self, *args, **kwargs):
+        """
+        Update location_updated_at when latitude/longitude change.
+        This ensures admin edits also update the timestamp.
+        """
+        try:
+            old = Profile.objects.get(pk=self.pk)
+        except Profile.DoesNotExist:
+            old = None
+
+        if old is None:
+            # New profile — if lat/lon provided, set timestamp now
+            if self.latitude is not None or self.longitude is not None:
+                self.location_updated_at = timezone.now()
+        else:
+            # If either coordinate changed, update timestamp
+            lat_changed = (old.latitude != self.latitude)
+            lon_changed = (old.longitude != self.longitude)
+            if lat_changed or lon_changed:
+                self.location_updated_at = timezone.now()
+
+        super().save(*args, **kwargs)
 
 
 class ReliefRequest(models.Model):

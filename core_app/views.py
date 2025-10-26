@@ -148,24 +148,28 @@ def dashboard_view(request):
     }
     return render(request, 'core_app/dashboard.html', context)
 
-
 @login_required(login_url='login')
 def volunteer_dashboard_view(request):
-    """Volunteer/Admin dashboard to view all active requests."""
-    # Local import
+    """Volunteer/Admin dashboard to view all active requests and show volunteer location info."""
     from .models import ReliefRequest
 
     if not request.user.is_staff:
         messages.error(request, "You do not have permission to view this page.")
         return redirect('dashboard')
 
+    # Fetch requests and global alerts
     all_requests = ReliefRequest.objects.exclude(status='Completed').order_by('created_at')
     alerts_collection = get_mongo_collection('alerts')
     global_alerts = list(alerts_collection.find({'is_active': True}).sort('timestamp', -1))
 
+    # fetch user's profile if it exists (signals should create it for new users,
+    # but handle the case where it is missing)
+    profile = getattr(request.user, 'profile', None)
+
     context = {
         'all_requests': all_requests,
         'global_alerts': global_alerts,
+        'profile': profile,  
     }
     return render(request, 'core_app/volunteer_dashboard.html', context)
 
@@ -307,3 +311,37 @@ def create_alert_view(request):
         'active_alerts': active_alerts,
     }
     return render(request, 'core_app/create_alert.html', context)
+
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from core_app.models import Profile
+from django.utils import timezone
+
+@csrf_exempt  # allows JS fetch post without csrf token complexity
+@login_required
+def update_location(request):
+    """
+    Updates volunteer's latitude and longitude via frontend 'Set My Location' button.
+    """
+    if request.method == "POST":
+        try:
+            lat_raw = request.POST.get("latitude")
+            lon_raw = request.POST.get("longitude")
+            if lat_raw is None or lon_raw is None:
+                return JsonResponse({"status": "error", "message": "Missing latitude/longitude"}, status=400)
+
+            lat = float(lat_raw)
+            lon = float(lon_raw)
+
+            profile = request.user.profile  # created automatically if you set up the signal
+            profile.latitude = lat
+            profile.longitude = lon
+            profile.location_updated_at = timezone.now()
+            profile.save()
+
+            return JsonResponse({"status": "success", "message": "Location updated successfully!"})
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+    return JsonResponse({"status": "error", "message": "Invalid request"}, status=400)

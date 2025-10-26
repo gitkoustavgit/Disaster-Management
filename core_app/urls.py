@@ -15,4 +15,6 @@ urlpatterns = [
 
     path('alerts/create/', views.create_alert_view, name='create_alert'),
     path('pending-approval/', views.pending_approval_view, name='pending_approval'),
+
+    path('update-location/', views.update_location, name='update_location'),
 ]
